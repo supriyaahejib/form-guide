@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "FormGuide",
+  "version": "1.0",
+  "description": "Walks you through filling out a confusing form, one plain question at a time.",
+  "permissions": ["activeTab"],
+  "host_permissions": [
+    "http://localhost:5500/*", 
+    "http://127.0.0.1:5500/*", 
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:5500/*", 
+        "http://127.0.0.1:5500/*"
+      ],
+      "js": ["content.js"]
+    }
+  ]
+}
