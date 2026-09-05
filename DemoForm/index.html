@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>State Benefits Portal - Form 492-B (Comprehensive)</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      background-color: #f4f7f6;
+      color: #333;
+      margin: 0;
+      padding: 40px;
+    }
+    .form-container {
+      max-width: 750px;
+      background: white;
+      padding: 30px 40px;
+      border-top: 6px solid #0f365b;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      margin: 0 auto;
+    }
+    .header {
+      border-bottom: 2px solid #ddd;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .header-text h1 {
+      font-size: 24px;
+      color: #0f365b;
+      margin: 0 0 5px 0;
+    }
+    .header-text p {
+      font-size: 12px;
+      color: #666;
+      margin: 0;
+    }
+    .official-seal {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: #999;
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+    .section-title {
+      font-size: 16px;
+      background: #e2e8f0;
+      padding: 8px 12px;
+      font-weight: bold;
+      margin: 25px 0 15px 0;
+      color: #2d3748;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 6px;
+      color: #2d3748;
+    }
+    .helper-text {
+      font-size: 12px;
+      color: #718096;
+      margin-bottom: 8px;
+      display: block;
+      line-height: 1.4;
+    }
+    input[type="text"], 
+    input[type="number"], 
+    input[type="password"], 
+    input[type="date"], 
+    select, 
+    textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #cbd5e0;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+      background-color: #fff;
+    }
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: 2px solid #3182ce;
+      border-color: #3182ce;
+    }
+    .checkbox-group {
+      display: flex;
+      align-items: flex-start;
+      margin-top: 10px;
+      background: #f7fafc;
+      padding: 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+    }
+    .checkbox-group input[type="checkbox"] {
+      margin-right: 12px;
+      margin-top: 3px;
+      transform: scale(1.2);
+    }
+    .checkbox-group label {
+      margin-bottom: 0;
+      font-weight: normal;
+      font-size: 13px;
+    }
+    .submit-btn {
+      background: #0f365b;
+      color: white;
+      padding: 14px 24px;
+      border: none;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 30px;
+      border-radius: 4px;
+      width: 100%;
+    }
+    .submit-btn:hover {
+      background: #1a4971;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="form-container">
+    <div class="header">
+      <div class="header-text">
+        <h1>Department of Social Services</h1>
+        <p>Form 492-B: Comprehensive Assistance Application (Rev. 2024)</p>
+      </div>
+      <div class="official-seal">
+        Official Use Only<br>OMB No. 0938-1191
+      </div>
+    </div>
+
+  
+    <input type="hidden" id="csrf_token" value="abc123xyz_do_not_parse_me">
+
+    <div class="section-title">Section 1: Applicant Biometrics & Credentials</div>
+    
+    <div class="form-group">
+      <label for="full_name">Applicant Legal Appellation</label>
+      <span class="helper-text">Enter full legal name exactly as it appears on state-issued credentialing.</span>
+      <input type="text" id="full_name" placeholder="Last, First, Middle Initial">
+    </div>
+
+    <div class="form-group">
+      <label for="dob">Date of Initial Vital Registration</label>
+      <input type="date" id="dob">
+    </div>
+
+    <div class="form-group">
+      <label for="ssn">9-Digit Federal Identification Number</label>
+      <span class="helper-text">This data is encrypted in transit. Do not include hyphens.</span>
+      <input type="password" id="ssn" placeholder="*********">
+    </div>
+
+    <div class="form-group">
+      <label>Statutory Domicile Authorization</label>
+      <span class="helper-text">Do you maintain legal authorization to permanently reside within the national borders?</span>
+      <div style="margin-top: 10px; background: #f7fafc; padding: 12px; border: 1px solid #e2e8f0; border-radius: 4px;">
+        <div style="display: flex; align-items: center; margin-bottom: 8px;">
+          <input type="radio" id="auth_yes" name="domicile_auth" value="yes">
+          <label for="auth_yes" style="margin: 0 0 0 8px; font-weight: normal; font-size: 13px;">Affirmative (Authorized)</label>
+        </div>
+        <div style="display: flex; align-items: center;">
+          <input type="radio" id="auth_no" name="domicile_auth" value="no">
+          <label for="auth_no" style="margin: 0 0 0 8px; font-weight: normal; font-size: 13px;">Negative (Unauthorized)</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Section 2: Domicile & Financial Attestation</div>
+
+  
+    <div class="form-group">
+      <label for="domicile_type">Primary Domicile Classification</label>
+      <select id="domicile_type">
+        <option value="">-- Select Classification --</option>
+        <option value="owner">Mortgaged / Freehold Ownership</option>
+        <option value="tenant">Tenant / Leasehold</option>
+        <option value="institutional">Institutional / Congregate Care</option>
+        <option value="unhoused">Lacking Fixed Nighttime Residence</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="conveyance_value">Unencumbered Primary Conveyance Valuation</label>
+      <span class="helper-text">Enter the current fair market equity of your primary motorized transit vehicle, subtracting any outstanding lienholder obligations. Do not include recreational or non-operational conveyances.</span>
+      <input type="number" id="conveyance_value" placeholder="$ 0.00">
+    </div>
+
+
+    <div class="form-group">
+      <label for="gross_income">Aggregate Gross Monthly Remuneration</label>
+      <span class="helper-text">Include all wages, stipends, and disbursements prior to statutory withholdings.</span>
+      <input type="number" id="gross_income" placeholder="$ 0.00">
+    </div>
+ 
+    <div class="form-group">
+      <label>Non-Exempt Concurrent Beneficiary Status</label>
+      <span class="helper-text">Do you or any co-habitating dependent currently receive, or have you not been denied retroactive disbursal for, supplemental assistance under Title IV-A (excluding categorically eligible block grants)?</span>
+      <div style="margin-top: 10px; background: #f7fafc; padding: 12px; border: 1px solid #e2e8f0; border-radius: 4px;">
+        <div style="display: flex; align-items: center; margin-bottom: 8px;">
+          <input type="radio" id="title_iv_yes" name="title_iv_status" value="yes">
+          <label for="title_iv_yes" style="margin: 0 0 0 8px; font-weight: normal; font-size: 13px;">Yes, I am not excluded.</label>
+        </div>
+        <div style="display: flex; align-items: center;">
+          <input type="radio" id="title_iv_no" name="title_iv_status" value="no">
+          <label for="title_iv_no" style="margin: 0 0 0 8px; font-weight: normal; font-size: 13px;">No, I am excluded or pending.</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Section 3: Circumstantial Justification</div>
+
+   
+    <div class="form-group">
+      <label for="hardship_reason">Elaboration of Acute Hardship</label>
+      <span class="helper-text">Provide a comprehensive narrative detailing the circumstances precipitating this application. Limit 500 words.</span>
+      <textarea id="hardship_reason" placeholder="Enter justification narrative here..."></textarea>
+    </div>
+
+    
+    <div class="form-group">
+      <label>Statutory Consent & Adjudication</label>
+      <div class="checkbox-group">
+        <input type="checkbox" id="perjury_attestation">
+        <label for="perjury_attestation">
+          <strong>Penalty of Perjury Attestation:</strong> I hereby certify, under penalty of perjury, that the aforementioned representations are empirically factual. I consent to algorithmic verification of my financial disbursements by state auditing agencies.
+        </label>
+      </div>
+    </div>
+
+    <button class="submit-btn" type="button">Transmit Application for Adjudication</button>
+  </div>
+
+</body>
+</html>
