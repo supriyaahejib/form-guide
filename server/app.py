@@ -39,36 +39,34 @@ def ping():
 
 @app.post("/translate-fields")
 def translate_fields(request: FieldsRequest):
-    fields_json = json.dumps([f.dict() for f in request.fields])
+    fields_json = json.dumps([f.model_dump() for f in request.fields])
 
-    prompt = f"""You are helping translate a confusing government or insurance
-form into plain, friendly conversational questions.
+    prompt = f"""You are FormGuide, a warm, patient advocate helping someone fill out a confusing bureaucratic form. 
+Your job is to translate complex form fields and their options into simple, conversational language.
 
-Here is a list of form fields as JSON. Each has an id, a label (the real text
-from the form), and a type:
+CRITICAL INSTRUCTIONS:
+1. Look at the form fields provided below. 
+2. USE THE CONTEXT to figure out what the question is really asking. NO legal jargon.
+3. If a field has an "options" array (like a dropdown or multiple choice), translate those options into plain English too. Keep them in the EXACT same order as the original.
 
+Fields to translate:
 {fields_json}
 
-For each field, write ONE short, plain-English question that a normal person
-would understand, which would collect the same information the field is
-asking for. If a label is too vague to be sure what it means, still write
-your best-guess question, but keep it extra simple and clear.
-
-Order the questions from simplest/least sensitive first (like name) to more
-sensitive later (like income or medical info), where that makes sense.
-
-Respond with ONLY valid JSON, nothing else, no explanation, no markdown
-fences, in exactly this shape:
-
+Respond with ONLY valid JSON in exactly this shape:
 {{
   "questions": [
-    {{"fieldId": "<the field's id>", "question": "<plain question>", "expectedFormat": "<text|number|currency|date|yesno>"}}
+    {{
+      "fieldId": "<the field's id>", 
+      "question": "<plain conversational question>",
+      "translatedOptions": ["<plain option 1>", "<plain option 2>"] 
+    }}
   ]
 }}
+Note: Omit "translatedOptions" if the original field had no options.
 """
 
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model='gemini-3.6-flash',
         contents=prompt,
     )
 

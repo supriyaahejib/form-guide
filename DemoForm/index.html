@@ -191,6 +191,12 @@
         <option value="institutional">Institutional / Congregate Care</option>
         <option value="unhoused">Lacking Fixed Nighttime Residence</option>
       </select>
+    
+    <div class="form-group" id="landlord_section" style="display: none; background: #fffbeb; padding: 15px; border-left: 4px solid #f59e0b; margin-top: 10px;">
+      <label for="landlord_name">Property Manager / Freeholder Appellation</label>
+      <span class="helper-text">Enter the legal entity or individual to whom you remit monthly shelter disbursements.</span>
+      <input type="text" id="landlord_name" placeholder="Name of landlord or management company">
+    </div>
     </div>
 
     <div class="form-group">
@@ -243,6 +249,17 @@
 
     <button class="submit-btn" type="button">Transmit Application for Adjudication</button>
   </div>
-
+  <script>
+    // Simulates a modern React/Angular dynamic form state
+    document.getElementById('domicile_type').addEventListener('change', function(e) {
+      const landlordSection = document.getElementById('landlord_section');
+      if (e.target.value === 'tenant') {
+        landlordSection.style.display = 'block';
+      } else {
+        landlordSection.style.display = 'none';
+        document.getElementById('landlord_name').value = ''; // clear if hidden
+      }
+    });
+  </script>
 </body>
 </html>
