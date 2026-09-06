@@ -97,10 +97,24 @@ function createSidebar() {
     <div id="fg-question" style="font-size:16px; margin-bottom:12px;">Loading...</div>
     <input id="fg-answer" type="text" style="width:100%; padding:8px; box-sizing:border-box;" />
     <button id="fg-next" style="margin-top:10px; padding:8px 16px;">Next</button>
+    <button id="fg-rescan" style="margin-top:10px; padding:6px 12px; font-size:12px; background:#e2e8f0; color:#4a5568; border:none; border-radius:4px; cursor:pointer;">↻ Rescan Page</button>
   `;
   document.body.appendChild(sidebar);
 }
-
+document.addEventListener("click", async (e) => {
+  if (e.target.id === "fg-rescan") {
+    e.target.innerText = "Scanning...";
+    const newFields = extractFields();
+    // Only fetch questions for fields we haven't already asked about
+    const unseenFields = newFields.filter((f) => !answers.hasOwnProperty(f.id));
+    if (unseenFields.length > 0) {
+      const newQuestions = await getQuestions(unseenFields);
+      questions = questions.concat(newQuestions);
+    }
+    e.target.innerText = "↻ Rescan Page";
+    showQuestion();
+  }
+});
 function showQuestion() {
   if (currentIndex >= questions.length) {
     showSummary();
