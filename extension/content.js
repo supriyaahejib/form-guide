@@ -10,7 +10,7 @@ function extractFields() {
   const inputs = document.querySelectorAll("input, select, textarea");
 
   inputs.forEach((el) => {
-    if (el.closest('#formguide-sidebar')) return; // Ignore our own UI
+    if (el.closest('#formguide-sidebar')) return; 
     if (el.type === "hidden" || el.type === "submit" || el.type === "button" || el.offsetParent === null) return;
 
     if (el.type === "radio") {
@@ -66,7 +66,10 @@ function extractFields() {
       label: label.trim(),
       context: contextText.trim(),
       type: el.tagName.toLowerCase() === "select" ? "select" : (el.type || "text"),
-      options: options.length > 0 ? options : null
+      options: options.length > 0 ? options : null,
+      isRequired: el.hasAttribute("required"),
+      maxLength: el.getAttribute("maxlength"),
+      minLength: el.getAttribute("minlength")
     });
   });
 
@@ -85,12 +88,20 @@ async function getQuestions(fields) {
     if (!response.ok) throw new Error(`Server returned ${response.status}`);
     const data = await response.json();
     
+    if (!data || !data.questions) return []; 
+
     data.questions.forEach(q => {
       const originalField = fields.find(f => f.id === q.fieldId);
       if (originalField) {
+        q.originalLabel = originalField.label; 
+        q.context = originalField.context; // IMPORTANT: We now attach context for smart validation
         q.originalOptions = originalField.options; 
-        q.translatedOptions = q.translatedOptions || originalField.options; // Fallback if Gemini didn't translate
+        q.translatedOptions = (q.translatedOptions && q.translatedOptions.length > 0) ? q.translatedOptions : (originalField.options || []); 
         q.type = originalField.type; 
+        
+        q.isRequired = originalField.isRequired;
+        q.maxLength = originalField.maxLength;
+        q.minLength = originalField.minLength;
       }
     });
     return data.questions;
@@ -102,6 +113,9 @@ async function getQuestions(fields) {
 
 // --- UI / SIDEBAR ---
 function createSidebar() {
+  const existingSidebar = document.getElementById("formguide-sidebar");
+  if (existingSidebar) existingSidebar.remove(); 
+
   const sidebar = document.createElement("div");
   sidebar.id = "formguide-sidebar";
   sidebar.style.cssText = `
@@ -114,33 +128,52 @@ function createSidebar() {
     <h2 style="margin-top:0; color: #0f365b;">FormGuide</h2>
     <div id="fg-progress" style="color:#666; font-size:13px; margin-bottom:10px; font-weight:600;">Initializing...</div>
     <div id="fg-question" style="font-size:17px; margin-bottom:12px; font-weight: 500; color:#2d3748; line-height:1.4;">Reading the form...</div>
-    <div id="fg-answer-container" style="margin-bottom:16px;"></div>
-    <div style="display:flex; gap:10px;">
+    
+    <div id="fg-answer-container" style="margin-bottom:8px;"></div>
+    
+    <div id="fg-error-message" style="color: #e53e3e; font-size: 13px; margin-bottom: 12px; font-weight: 500; display: none;"></div>
+    
+    <div style="display:flex; gap:10px;" id="fg-button-group">
       <button id="fg-back" style="padding:10px; background: #e2e8f0; color: #4a5568; border: none; border-radius: 6px; cursor: pointer; font-weight:bold; flex:1; display:none;">Back</button>
-      <button id="fg-next" style="padding:10px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight:bold; flex:2;">Next</button>
+      <button id="fg-next" style="padding:10px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight:bold; flex:2; display:none;">Next</button>
     </div>
   `;
   document.body.appendChild(sidebar);
 }
 
 function showQuestion() {
+  if (!questions || questions.length === 0) {
+    document.getElementById("fg-question").innerText = "⚠️ Error: No fields loaded. Please check if your Groq backend is running on port 8001.";
+    document.getElementById("fg-question").style.color = "#e53e3e";
+    document.getElementById("fg-progress").innerText = "Status: Backend Failure";
+    document.getElementById("fg-answer-container").innerHTML = "";
+    document.getElementById("fg-next").style.display = "none";
+    document.getElementById("fg-back").style.display = "none";
+    return;
+  }
+
   if (currentIndex >= questions.length) {
     showSummary();
     return;
   }
   
+  document.getElementById("fg-error-message").style.display = "none";
+  
   const q = questions[currentIndex];
   document.getElementById("fg-progress").innerText = `Question ${currentIndex + 1} of ${questions.length}`;
   document.getElementById("fg-question").innerText = q.question;
+  document.getElementById("fg-question").style.color = "#2d3748"; 
+  document.getElementById("fg-next").style.display = "block";
   
   const answerContainer = document.getElementById("fg-answer-container");
-  const savedAnswer = answers[q.fieldId] || ""; // This holds the *original* complex answer
+  const savedAnswer = answers[q.fieldId] || ""; 
 
   if (q.originalOptions && q.originalOptions.length > 0) {
-    let html = `<select id="fg-answer" style="width:100%; padding:10px; border: 1px solid #cbd5e0; border-radius: 6px;">`;
+    let html = `<select id="fg-answer" style="width:100%; padding:10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size:14px;">`;
     html += `<option value="">-- Choose an option --</option>`;
-    q.translatedOptions.forEach((opt, idx) => {
-      // Use the array index as the value so we can map it back to the original text
+    
+    const displayOptions = (q.translatedOptions.length === q.originalOptions.length) ? q.translatedOptions : q.originalOptions;
+    displayOptions.forEach((opt, idx) => {
       const selected = (savedAnswer === q.originalOptions[idx]) ? "selected" : "";
       html += `<option value="${idx}" ${selected}>${opt}</option>`;
     });
@@ -156,9 +189,12 @@ function showQuestion() {
         </label>
       </div>`;
   } else if (q.type === "date") {
-    answerContainer.innerHTML = `<input id="fg-answer" type="date" value="${savedAnswer}" style="width:100%; padding:10px; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing:border-box;" />`;
+    answerContainer.innerHTML = `<input id="fg-answer" type="date" value="${savedAnswer}" style="width:100%; padding:10px; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing:border-box; font-size:14px;" />`;
+  } else if (q.type === "textarea" || (q.originalLabel && q.originalLabel.toLowerCase().includes("describe"))) {
+    // Render textareas properly for long text fields
+    answerContainer.innerHTML = `<textarea id="fg-answer" style="width:100%; padding:10px; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing:border-box; font-size:14px; resize:vertical; min-height:80px;" placeholder="Type your answer...">${savedAnswer}</textarea>`;
   } else {
-    answerContainer.innerHTML = `<input id="fg-answer" type="text" value="${savedAnswer}" style="width:100%; padding:10px; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing:border-box;" placeholder="Type your answer..." />`;
+    answerContainer.innerHTML = `<input id="fg-answer" type="text" value="${savedAnswer}" style="width:100%; padding:10px; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing:border-box; font-size:14px;" placeholder="Type your answer..." />`;
   }
 
   document.getElementById("fg-back").style.display = currentIndex > 0 ? "block" : "none";
@@ -179,10 +215,10 @@ function showSummary() {
     let displayAnswer = answers[q.fieldId];
     if (q.type === "checkbox") {
       displayAnswer = displayAnswer === "true" ? "Agreed" : "Skipped";
-    } else if (q.originalOptions) {
-      // Show the beautiful translated answer in the summary, not the bureaucratic one
+    } else if (q.originalOptions && displayAnswer) {
       const idx = q.originalOptions.indexOf(answers[q.fieldId]);
-      if (idx !== -1 && q.translatedOptions[idx]) displayAnswer = q.translatedOptions[idx];
+      const displayOptions = (q.translatedOptions.length === q.originalOptions.length) ? q.translatedOptions : q.originalOptions;
+      if (idx !== -1 && displayOptions[idx]) displayAnswer = displayOptions[idx];
     }
     
     html += `
@@ -195,7 +231,6 @@ function showSummary() {
   sidebar.innerHTML = html;
 }
 
-// BUG FIX 2: Inline Dynamic Splicing
 async function autoScanForNewFields() {
   const currentFieldsOnPage = extractFields();
   const unseenFields = currentFieldsOnPage.filter(f => !questions.some(q => q.fieldId === f.id));
@@ -205,9 +240,7 @@ async function autoScanForNewFields() {
     if (nextBtn) nextBtn.innerText = "Processing dynamic fields...";
     
     const newQuestions = await getQuestions(unseenFields);
-    
-    // Splice inserts the new questions immediately after the current index!
-    questions.splice(currentIndex + 1, 0, ...newQuestions);
+    questions.splice(currentIndex + 1, 0, ...newQuestions); 
     
     if (nextBtn) nextBtn.innerText = "Next";
   }
@@ -230,18 +263,71 @@ document.addEventListener("click", (e) => {
     const answerEl = document.getElementById("fg-answer");
     if (!answerEl) return;
     
-    let answer = answerEl.type === "checkbox" ? (answerEl.checked ? "true" : "false") : answerEl.value;
-    let actualDOMAnswer = answer;
+    let answer = answerEl.type === "checkbox" ? (answerEl.checked ? "true" : "false") : answerEl.value.trim();
+    const q = questions[currentIndex];
+    
+    // ==========================================
+    // VALIDATION ENGINE
+    // ==========================================
+    const errorMsg = document.getElementById("fg-error-message");
+    errorMsg.style.display = "none"; 
 
-    // BUG FIX 1: Map the simplified option index back to the real bureaucratic text
-    if (questions[currentIndex].originalOptions && answer !== "") {
-      actualDOMAnswer = questions[currentIndex].originalOptions[parseInt(answer)];
+    // 1. Required Check
+    if (q.isRequired && (!answer || answer === "false")) {
+        errorMsg.innerText = "⚠️ This field is required to continue.";
+        errorMsg.style.display = "block";
+        return; 
+    }
+
+    // 2. HTML Character Limits
+    if (q.maxLength && answer.length > parseInt(q.maxLength)) {
+        errorMsg.innerText = `⚠️ Too long! Max ${q.maxLength} characters (you used ${answer.length}).`;
+        errorMsg.style.display = "block";
+        return; 
+    }
+    if (q.minLength && answer.length < parseInt(q.minLength)) {
+        errorMsg.innerText = `⚠️ Too short! Minimum ${q.minLength} characters needed.`;
+        errorMsg.style.display = "block";
+        return; 
+    }
+
+    // 3. Smart NLP Feature: Catch Word & Character limits from Text/Instructions
+    const combinedText = (q.question + " " + (q.originalLabel || "") + " " + (q.context || "")).toLowerCase();
+    
+    // Looks for: "500 words max", "max 500 words", "word limit 500", "500 word limit"
+    const wordLimitMatch = combinedText.match(/(\d+)\s*-?\s*words?\s*max|max(?:imum)?\s*(?:of\s*)?(\d+)\s*-?\s*words?|(\d+)\s*-?\s*word\s*limit|word\s*limit\s*(?:of\s*)?(\d+)/i);
+    
+    if (wordLimitMatch) {
+        const limit = parseInt(wordLimitMatch[1] || wordLimitMatch[2] || wordLimitMatch[3] || wordLimitMatch[4], 10);
+        const wordCount = answer === "" ? 0 : answer.trim().split(/\s+/).length;
+        
+        if (wordCount > limit) {
+            errorMsg.innerText = `⚠️ Word limit exceeded! Max is ${limit} words, but you wrote ${wordCount}.`;
+            errorMsg.style.display = "block";
+            return;
+        }
+    }
+
+    // 4. Smart NLP Feature: 9-digit requirement
+    if (combinedText.includes("9-digit") || combinedText.includes("9 digit")) {
+        const digitCount = answer.replace(/\D/g, '').length; 
+        if (digitCount !== 9) {
+            errorMsg.innerText = "⚠️ Please enter exactly 9 digits.";
+            errorMsg.style.display = "block";
+            return; 
+        }
+    }
+    // ==========================================
+
+    let actualDOMAnswer = answer;
+    if (q.originalOptions && answer !== "") {
+      actualDOMAnswer = q.originalOptions[parseInt(answer)];
     }
     
-    answers[questions[currentIndex].fieldId] = actualDOMAnswer;
+    answers[q.fieldId] = actualDOMAnswer;
     
-    // Inject into DOM
-    const el = document.querySelector(`[data-formguide-id="${questions[currentIndex].fieldId}"]`);
+    // REAL DOM INJECTION
+    const el = document.querySelector(`[data-formguide-id="${q.fieldId}"]`);
     if (el) {
       if (el.type === "radio") {
         document.querySelectorAll(`input[name="${el.name}"]`).forEach(r => {
@@ -254,7 +340,7 @@ document.addEventListener("click", (e) => {
       } else {
         if (el.tagName.toLowerCase() === "select") {
            const targetOption = Array.from(el.options).find(o => o.innerText.includes(actualDOMAnswer) || o.value === actualDOMAnswer);
-           if(targetOption) el.value = targetOption.value;
+           if (targetOption) el.value = targetOption.value;
         } else {
            el.value = actualDOMAnswer;
         }
