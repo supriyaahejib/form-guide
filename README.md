@@ -4,7 +4,6 @@ FormGuide is a voice-first browser assistant for helping people complete confusi
 
 It is designed for forms that use difficult government, legal, financial, medical, or administrative language. FormGuide does not submit a form. It fills answers as the person progresses, then presents a review screen and reminds them to check the page and use the form's own submit button when they are ready.
 
-> **Project status:** This is a local demo/prototype. It is not a production accessibility, privacy, legal, or eligibility service.
 
 ## What it does
 
@@ -17,7 +16,7 @@ It is designed for forms that use difficult government, legal, financial, medica
 - Recognizes spoken help requests such as “what is rent?”, “what does that mean?”, “I don't understand,” and “wait, what?” before they can be mistaken for text-field answers.
 - Explains requested terms and the available choices conversationally by voice.
 - Extracts the value needed by structured fields. For example, “my rent is two hundred dollars” can become `200` for a number field rather than copying the whole sentence.
-- Keeps free-form responses as spoken and offers an explicit **Refine my answer** button for optional clarity/grammar cleanup. It never refines automatically when the person presses Next.
+- Keeps free-form responses as spoken and offers an explicit **Refine my answer** button for optional clarity/grammar cleanup.
 - Detects visible conditional fields after an answer changes the form and adds them to the guided flow.
 - Treats detected password, SSN, bank, card, routing, and passcode fields as sensitive: voice controls are hidden and their values are not sent to the AI backend.
 
