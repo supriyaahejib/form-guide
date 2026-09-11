@@ -192,6 +192,22 @@ function spokenQuestion(q) {
   return `${q.question}.${options} You may type an answer or select Speak.`;
 }
 
+function isExplanationRequest(transcript) {
+  // Treat only an utterance that *starts* as a request for help as a command.
+  // That catches natural requests such as "what is rent?" and "I don't
+  // understand" without misreading an actual answer that happens to mention
+  // help, rent, or another explanatory word.
+  const text = normalizeSpeech(transcript)
+    .replace(/^(?:(?:um|uh|hey|okay|ok|so|please)\s+)+/, "");
+
+  return /^(?:(?:can|could|would) you\s+)?(?:explain|define|clarify)\b/.test(text) ||
+    /^what\s+(?:does|is|are)\b/.test(text) ||
+    /^i\s+(?:do not|dont)\s+(?:understand|get)\b/.test(text) ||
+    /^i\s+(?:do not|dont)\s+know\s+what\b/.test(text) ||
+    /^wait(?:\s+what)?\b/.test(text) ||
+    /^help(?:\s+me)?\b/.test(text);
+}
+
 function optionCandidatesFor(q) {
   if (q.originalOptions?.length) {
     const plainOptions = q.translatedOptions?.length === q.originalOptions.length
@@ -244,8 +260,11 @@ async function applySpokenAnswer(q, transcript) {
     setVoiceStatus("Repeating the question.");
     return;
   }
-  if (/^(explain|explain question|what does that mean|help)$/.test(command)) {
-    explainCurrentQuestion();
+  if (isExplanationRequest(transcript)) {
+    // Do not let the microphone capture the assistant's explanation. The user
+    // can select Speak again after hearing it and continue naturally.
+    stopListening();
+    await explainCurrentQuestion(transcript);
     return;
   }
 
@@ -317,7 +336,7 @@ async function applySpokenAnswer(q, transcript) {
   }
 
   setVoiceStatus(q.answerMode === "subjective"
-    ? "Added to your response. Keep speaking, select Stop, then choose Next to improve clarity."
+    ? "Added to your response. Keep speaking, then select Refine my answer if you want help with the wording."
     : "Captured. Review or edit it, then select Next.");
 }
 
@@ -572,7 +591,10 @@ function showQuestion() {
     // Render textareas properly for long text fields
     const maxLengthAttr = q.maxLength ? ` maxlength="${q.maxLength}"` : "";
     const minLengthAttr = q.minLength ? ` minlength="${q.minLength}"` : "";
-    answerContainer.innerHTML = `<textarea id="fg-answer"${maxLengthAttr}${minLengthAttr} style="width:100%; padding:10px; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing:border-box; font-size:14px; resize:vertical; min-height:80px;" placeholder="Type your answer...">${escapeHtml(savedAnswer)}</textarea>`;
+    const refineButton = q.answerMode === "subjective"
+      ? `<button id="fg-refine" type="button" style="margin-top:8px; padding:8px 10px; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; border-radius:6px; cursor:pointer; font-weight:600;">✨ Refine my answer</button>`
+      : "";
+    answerContainer.innerHTML = `<textarea id="fg-answer"${maxLengthAttr}${minLengthAttr} style="width:100%; padding:10px; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing:border-box; font-size:14px; resize:vertical; min-height:80px;" placeholder="Type your answer...">${escapeHtml(savedAnswer)}</textarea>${refineButton}`;
   } else if (q.answerMode === "sensitive") {
     answerContainer.innerHTML = `<input id="fg-answer" type="password" value="${escapeHtml(savedAnswer)}" autocomplete="off" style="width:100%; padding:10px; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing:border-box; font-size:14px;" placeholder="Type privately..." />`;
   } else {
@@ -592,10 +614,9 @@ function showSummary() {
   const sidebar = document.getElementById("formguide-sidebar");
   let html = `
     <h2 style="margin-top:0; color:#0f365b;">Review & Confirm</h2>
-    <p style="font-size:13px; color:#4a5568;">Please review your answers before final submission.</p>
+    <p style="font-size:13px; color:#4a5568;">Your answers have been filled into the form. Review every answer on the page, make any needed changes, and use the form's own submit button only when you are ready.</p>
     <div style="display:flex; gap:10px; margin-bottom: 20px;">
-      <button id="fg-back-summary" style="padding:10px; background: #e2e8f0; color: #4a5568; border: none; border-radius: 6px; cursor: pointer; font-weight:bold; flex:1;">Go Back</button>
-      <button id="fg-confirm" style="padding:10px; background: #047857; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight:bold; flex:2;">Fill Form</button>
+      <button id="fg-back-summary" style="padding:10px; background: #e2e8f0; color: #4a5568; border: none; border-radius: 6px; cursor: pointer; font-weight:bold; width:100%;">Go Back and Edit</button>
     </div>
     <ul style="padding-left:0; list-style:none;">`;
   
@@ -619,12 +640,14 @@ function showSummary() {
   });
   html += `</ul>`;
   sidebar.innerHTML = html;
+  speak("Your form is ready for review. Your answers have already been filled into the form. Please check every answer carefully, make any needed changes, and use the form's own submit button only when you are ready.");
 }
 
-async function explainCurrentQuestion() {
+async function explainCurrentQuestion(userRequest = "") {
   const q = questions[currentIndex];
   if (!q || q.answerMode === "sensitive") return;
 
+  stopListening();
   setVoiceStatus("Explaining…");
   try {
     const response = await fetch("http://localhost:8001/explain-question", {
@@ -633,7 +656,10 @@ async function explainCurrentQuestion() {
       body: JSON.stringify({
         question: q.question,
         originalLabel: q.originalLabel || "",
-        context: q.context || ""
+        context: q.context || "",
+        options: q.originalOptions || [],
+        translatedOptions: q.translatedOptions || [],
+        userRequest
       })
     });
     if (!response.ok) throw new Error(`Server returned ${response.status}`);
@@ -650,6 +676,34 @@ async function explainCurrentQuestion() {
   } catch (error) {
     console.error("FormGuide explanation error:", error);
     setVoiceStatus("I could not explain that right now. You can repeat the question or type your answer.");
+  }
+}
+
+async function refineCurrentAnswer() {
+  const q = questions[currentIndex];
+  const answerEl = document.getElementById("fg-answer");
+  const refineButton = document.getElementById("fg-refine");
+  if (!q || q.answerMode !== "subjective" || !answerEl || !refineButton) return;
+
+  const answer = answerEl.value.trim();
+  if (!answer) {
+    setVoiceStatus("Please say or type your answer first.");
+    return;
+  }
+
+  stopListening();
+  refineButton.disabled = true;
+  refineButton.innerText = "Refining…";
+  setVoiceStatus("Refining your wording without changing your meaning…");
+  try {
+    answerEl.value = await refineSubjectiveAnswer(q, answer);
+    setVoiceStatus("Your answer was refined. Review or edit it, then select Next.");
+  } catch (error) {
+    console.error("FormGuide refinement error:", error);
+    setVoiceStatus("I could not refine that right now. Your original answer is unchanged.");
+  } finally {
+    refineButton.disabled = false;
+    refineButton.innerText = "✨ Refine my answer";
   }
 }
 
@@ -718,6 +772,10 @@ document.addEventListener("click", async (e) => {
     await explainCurrentQuestion();
   }
 
+  else if (e.target.id === "fg-refine") {
+    await refineCurrentAnswer();
+  }
+
   else if (e.target.id === "fg-mic") {
     const q = questions[currentIndex];
     if (!q || q.answerMode === "sensitive") return;
@@ -756,26 +814,6 @@ document.addEventListener("click", async (e) => {
         errorMsg.innerText = "⚠️ Please select this checkbox before continuing.";
         errorMsg.style.display = "block";
         return;
-    }
-
-    // Only written explanations can be polished. IDs, dates, names, choices,
-    // numbers, and other structured values are always preserved exactly.
-    if (q.answerMode === "subjective") {
-      const nextButton = document.getElementById("fg-next");
-      nextButton.disabled = true;
-      nextButton.innerText = "Improving clarity…";
-      setVoiceStatus("Improving clarity without adding facts…");
-      try {
-        answer = await refineSubjectiveAnswer(q, answer);
-        answerEl.value = answer;
-        setVoiceStatus("Edited only for clarity. You can go back to change it.");
-      } catch (error) {
-        console.error("FormGuide refinement error:", error);
-        setVoiceStatus("Could not improve wording right now; your original answer will be used.");
-      } finally {
-        nextButton.disabled = false;
-        nextButton.innerText = "Next";
-      }
     }
 
     // 2. HTML Character Limits
@@ -885,9 +923,6 @@ document.addEventListener("click", async (e) => {
     }, 150);
   }
 
-  else if (e.target.id === "fg-confirm") {
-    alert("Answers mapped to the document! Please review the form visually.");
-  }
 });
 
 async function init() {

@@ -113,6 +113,9 @@ class ExplainRequest(BaseModel):
     question: str
     originalLabel: str
     context: str = ""
+    options: Optional[List[str]] = None
+    translatedOptions: Optional[List[str]] = None
+    userRequest: Optional[str] = None
 
 
 class OptionCandidate(BaseModel):
@@ -150,12 +153,13 @@ Your job is to translate complex form fields and their options into simple, conv
 
 CRITICAL INSTRUCTIONS:
 1. Look at the form fields provided below. 
-2. USE THE CONTEXT to figure out what the question is really asking. NO legal jargon. Make sure the user receives all the necessary context for every question.
-3. If a field has an "options" array (like a dropdown or multiple choice), translate those options into plain English too. Keep them in the EXACT same order as the original. 
-4. Make sure you translate to plain English because the user may not be a native speaker.
-5. Explain a consequence only when it is explicitly stated in the supplied label or context. Never infer, add, or exaggerate legal consequences.
-6. Return an "answerMode" for every question. It must be one of: "structured" (exact values such as names, IDs, dates, numbers, addresses, selections, or yes/no), "subjective" (a written explanation, reason, or description), or "sensitive" (passwords, SSNs, bank or card details). Do not invent facts or answer the question for the user.
-7. Return exactly one question for every supplied field, in the same order, and use each supplied fieldId exactly once.
+2. The `question` is the person's FIRST explanation of the field, not a light paraphrase. State what the form needs in plain, everyday English in one or two short sentences. Replace jargon with common words; if a technical term is essential, define it immediately in ordinary words.
+3. Use the supplied context to preserve the field's actual meaning. Do not introduce legal jargon, and do not assume the person already understands the original label.
+4. If a field has an "options" array (like a dropdown or multiple choice), translate every option into a short, distinct, everyday description. Keep the EXACT same order as the original, and do not merge options that have different meanings.
+5. Write for someone who may be unfamiliar with government, financial, medical, or legal terms, including a non-native English speaker.
+6. Explain a consequence only when it is explicitly stated in the supplied label or context. Never infer, add, or exaggerate legal consequences.
+7. Return an "answerMode" for every question. It must be one of: "structured" (exact values such as names, IDs, dates, numbers, addresses, selections, or yes/no), "subjective" (a written explanation, reason, or description), or "sensitive" (passwords, SSNs, bank or card details). Do not invent facts or answer the question for the user.
+8. Return exactly one question for every supplied field, in the same order, and use each supplied fieldId exactly once.
 
 Fields to translate:
 {fields_json}
@@ -258,30 +262,26 @@ Rules:
 
 @app.post("/explain-question")
 def explain_question(request: ExplainRequest):
-    combined_text = f"{request.question} {request.originalLabel} {request.context}".lower()
-    # Source-backed glossary entry for the legal reference used in the demo
-    # form. Keeping this local prevents the model from inventing legal meaning.
-    if "title iv-a" in combined_text or "title iv a" in combined_text:
-        return {
-            "explanation": (
-                "Title IV-A is the part of the U.S. Social Security Act that contains "
-                "the Temporary Assistance for Needy Families, or TANF, program. This "
-                "question is asking whether you or a person in your household receives, "
-                "was denied, or is waiting on that type of assistance."
-            )
-        }
+    options_json = json.dumps(request.options or [])
+    translated_options_json = json.dumps(request.translatedOptions or [])
 
-    prompt = f"""Explain this form question in simpler, friendly English.
+    prompt = f"""You are a patient voice assistant helping someone understand a form before answering it.
 
 Plain-language question: {request.question}
 Original form label: {request.originalLabel}
 Form context: {request.context}
+Original options: {options_json}
+Plain-English options in the same order: {translated_options_json}
+What the person asked: {request.userRequest or "Please explain this."}
 
 Rules:
-- Only clarify wording found in the supplied material.
+- Respond directly to what the person asked. If they asked about a word or phrase, define that word first in everyday language.
+- Then explain what the form is asking. When options are supplied, explain every option briefly in the supplied order, including how the choices differ.
+- Only clarify wording supported by the supplied material. If the material does not define a term, say what the term commonly means without deciding what applies to the person.
 - Do not answer the question for the user.
 - Do not add personal examples, legal advice, eligibility claims, or consequences not explicitly supplied.
-- Keep the explanation to two short sentences or fewer.
+- Use short conversational sentences that are easy to hear. End with one neutral question that helps the person choose, when that is useful.
+- Keep the response under 120 words.
 """
 
     response = client.chat.completions.create(
