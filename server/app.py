@@ -74,6 +74,23 @@ REFINEMENT_RESPONSE_SCHEMA = {
     },
 }
 
+# The browser only applies an option by index.  This schema deliberately keeps
+# the model from returning arbitrary form values or inventing another choice.
+OPTION_MATCH_RESPONSE_SCHEMA = {
+    "name": "formguide_option_match",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "decision": {"type": "string", "enum": ["matched", "clarify"]},
+            "optionIndex": {"type": "integer"},
+            "clarification": {"type": "string"},
+        },
+        "required": ["decision", "optionIndex", "clarification"],
+        "additionalProperties": False,
+    },
+}
+
 # Update the Pydantic model to catch all the data from the frontend
 class Field(BaseModel):
     id: str
@@ -96,6 +113,20 @@ class ExplainRequest(BaseModel):
     question: str
     originalLabel: str
     context: str = ""
+
+
+class OptionCandidate(BaseModel):
+    index: int
+    original: str
+    plain: str
+
+
+class OptionMatchRequest(BaseModel):
+    question: str
+    originalLabel: str = ""
+    context: str = ""
+    options: List[OptionCandidate]
+    userAnswer: str
 
 
 class RefineAnswerRequest(BaseModel):
@@ -160,6 +191,69 @@ For fields with no options, return "translatedOptions": [].
     cleaned = raw_text.replace("```json", "").replace("```", "").strip()
     data = json.loads(cleaned)
     return data
+
+
+@app.post("/match-option")
+def match_option(request: OptionMatchRequest):
+    """Resolve a natural spoken answer to one supplied option, or ask once."""
+    if len(request.options) < 2:
+        raise HTTPException(status_code=400, detail="At least two options are required")
+
+    options_json = json.dumps([option.model_dump() for option in request.options])
+    prompt = f"""You help a person answer a form question with a fixed set of choices.
+
+Question in plain English: {request.question}
+Original form label: {request.originalLabel}
+Form help text: {request.context}
+Allowed options: {options_json}
+What the person said: {request.userAnswer}
+
+Decide whether the person's meaning clearly matches exactly one allowed option.
+
+Rules:
+- Match meaning, not exact wording. The person can describe their situation in
+  their own words.
+- Use both each option's original wording and its plain-English wording.
+- Select an option only when it is clearly supported by what the person said.
+- Never guess between two plausible options and never make an eligibility,
+  legal, medical, financial, or factual determination for the person.
+- If it is unclear, return decision "clarify", optionIndex -1, and one short,
+  neutral follow-up question that distinguishes the relevant choices.
+- If it is clear, return decision "matched", the exact supplied option index,
+  and an empty clarification string.
+- Do not add an option that was not supplied.
+"""
+
+    try:
+        response = client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[{"role": "user", "content": prompt}],
+            reasoning_effort="low",
+            response_format={
+                "type": "json_schema",
+                "json_schema": OPTION_MATCH_RESPONSE_SCHEMA,
+            },
+        )
+        result = json.loads(response.choices[0].message.content)
+    except Exception as error:
+        raise HTTPException(status_code=502, detail=f"AI option-matching request failed: {error}") from error
+
+    allowed_indexes = {option.index for option in request.options}
+    if result["decision"] == "matched" and result["optionIndex"] in allowed_indexes:
+        result["clarification"] = ""
+        return result
+    if result["decision"] == "clarify":
+        result["optionIndex"] = -1
+        result["clarification"] = result["clarification"].strip() or "Which option best describes your situation?"
+        return result
+
+    # Treat malformed or out-of-range model output as uncertainty, never as a
+    # selection.  This protects the form from an unsupported answer.
+    return {
+        "decision": "clarify",
+        "optionIndex": -1,
+        "clarification": "Which option best describes your situation?",
+    }
 
 
 @app.post("/explain-question")

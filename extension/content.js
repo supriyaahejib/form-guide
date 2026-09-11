@@ -4,6 +4,7 @@ let currentIndex = 0;
 let answers = {};
 let recognition = null;
 let keepListening = false;
+let resolvingOption = false;
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -191,7 +192,52 @@ function spokenQuestion(q) {
   return `${q.question}.${options} You may type an answer or select Speak.`;
 }
 
-function applySpokenAnswer(q, transcript) {
+function optionCandidatesFor(q) {
+  if (q.originalOptions?.length) {
+    const plainOptions = q.translatedOptions?.length === q.originalOptions.length
+      ? q.translatedOptions
+      : q.originalOptions;
+    return q.originalOptions.map((original, index) => ({
+      index,
+      original,
+      plain: plainOptions[index]
+    }));
+  }
+
+  // A standalone checkbox is still a two-choice form control.  Its label and
+  // surrounding question are supplied to the model as context, not hard-coded
+  // rules for a particular consent or form.
+  if (q.type === "checkbox") {
+    return [
+      { index: 0, original: "Checked", plain: "Yes, select this checkbox" },
+      { index: 1, original: "Not checked", plain: "No, leave this checkbox unselected" }
+    ];
+  }
+
+  return [];
+}
+
+async function matchSpokenOption(q, transcript) {
+  const response = await fetch("http://localhost:8001/match-option", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question: q.question,
+      originalLabel: q.originalLabel || "",
+      context: q.context || "",
+      options: optionCandidatesFor(q),
+      userAnswer: transcript
+    })
+  });
+  if (!response.ok) throw new Error(`Server returned ${response.status}`);
+  const result = await response.json();
+  if (!result || !["matched", "clarify"].includes(result.decision)) {
+    throw new Error("Invalid option-matching response");
+  }
+  return result;
+}
+
+async function applySpokenAnswer(q, transcript) {
   const command = normalizeSpeech(transcript);
   if (/^(repeat|repeat question|say that again|again)$/.test(command)) {
     speak(spokenQuestion(q));
@@ -206,36 +252,40 @@ function applySpokenAnswer(q, transcript) {
   const answerEl = document.getElementById("fg-answer");
   if (!answerEl) return;
 
-  if (q.originalOptions?.length) {
-    const options = q.translatedOptions?.length === q.originalOptions.length
-      ? q.translatedOptions
-      : q.originalOptions;
-    const matchingIndexes = q.originalOptions
-      .map((originalOption, index) => ({
-        index,
-        translated: normalizeSpeech(options[index]),
-        original: normalizeSpeech(originalOption)
-      }))
-      .filter((option) =>
-        option.translated === command ||
-        option.original === command ||
-        (command.length >= 3 && (option.translated.includes(command) || option.original.includes(command))) ||
-        (option.translated.length >= 3 && command.includes(option.translated)) ||
-        (option.original.length >= 3 && command.includes(option.original))
-      )
-      .map((option) => option.index);
-    const matchingIndex = matchingIndexes.length === 1 ? matchingIndexes[0] : -1;
-    if (matchingIndex === -1) {
-      setVoiceStatus(`I heard “${transcript}”. Please say one listed option clearly, or choose it from the menu.`);
-      return;
-    }
-    answerEl.value = String(matchingIndex);
-  } else if (q.type === "checkbox") {
-    if (["yes", "agree", "i agree", "true"].includes(command)) {
-      answerEl.checked = true;
-    } else {
-      setVoiceStatus("Please say “yes” to agree, or use the checkbox.");
-      return;
+  if (optionCandidatesFor(q).length) {
+    // Speech recognition can emit several final segments for one utterance.
+    // Resolve only one at a time so a slower earlier request cannot overwrite
+    // a later result.
+    if (resolvingOption) return;
+    resolvingOption = true;
+    setVoiceStatus("Understanding your answer…");
+    try {
+      const result = await matchSpokenOption(q, transcript);
+      if (result.decision === "matched") {
+        const candidates = optionCandidatesFor(q);
+        const selected = candidates.find(option => option.index === result.optionIndex);
+        if (!selected) throw new Error("The selected option was not supplied");
+
+        if (q.type === "checkbox") answerEl.checked = result.optionIndex === 0;
+        else answerEl.value = String(result.optionIndex);
+
+        stopListening();
+        setVoiceStatus(`Selected: ${selected.plain}. Review it, then select Next.`);
+        speak(`I selected: ${selected.plain}.`);
+      } else {
+        stopListening();
+        const clarification = result.clarification || "Which option best describes your situation?";
+        setVoiceStatus(clarification);
+        speak(clarification);
+      }
+    } catch (error) {
+      console.error("FormGuide option matching error:", error);
+      stopListening();
+      const message = "I could not match that answer right now. Please try again or choose an option from the list.";
+      setVoiceStatus(message);
+      speak(message);
+    } finally {
+      resolvingOption = false;
     }
   } else if (q.type === "date") {
     const normalizedDate = spokenDate(transcript);
@@ -697,8 +747,13 @@ document.addEventListener("click", async (e) => {
 
     // 1. FormGuide asks one question at a time, so a blank answer must never
     // advance accidentally. Optional fields can later get an explicit Skip button.
-    if (!answer || (q.type === "checkbox" && answer === "false")) {
+    if (!answer && q.type !== "checkbox") {
         errorMsg.innerText = "⚠️ Please provide an answer before continuing.";
+        errorMsg.style.display = "block";
+        return;
+    }
+    if (q.type === "checkbox" && answer === "false" && q.isRequired) {
+        errorMsg.innerText = "⚠️ Please select this checkbox before continuing.";
         errorMsg.style.display = "block";
         return;
     }
