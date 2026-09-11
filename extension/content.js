@@ -5,6 +5,7 @@ let answers = {};
 let recognition = null;
 let keepListening = false;
 let resolvingOption = false;
+let resolvingStructuredAnswer = false;
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -253,6 +254,35 @@ async function matchSpokenOption(q, transcript) {
   return result;
 }
 
+function shouldExtractStructuredAnswer(q) {
+  return q.answerMode === "structured" &&
+    q.type !== "checkbox" &&
+    !q.originalOptions?.length;
+}
+
+async function extractStructuredAnswer(q, transcript) {
+  const response = await fetch("http://localhost:8001/extract-structured-answer", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question: q.question,
+      originalLabel: q.originalLabel || "",
+      context: q.context || "",
+      fieldType: q.type,
+      pattern: q.pattern || null,
+      min: q.min || null,
+      max: q.max || null,
+      userAnswer: transcript
+    })
+  });
+  if (!response.ok) throw new Error(`Server returned ${response.status}`);
+  const result = await response.json();
+  if (!result || !["value", "clarify"].includes(result.decision)) {
+    throw new Error("Invalid answer-extraction response");
+  }
+  return result;
+}
+
 async function applySpokenAnswer(q, transcript) {
   const command = normalizeSpeech(transcript);
   if (/^(repeat|repeat question|say that again|again)$/.test(command)) {
@@ -305,6 +335,33 @@ async function applySpokenAnswer(q, transcript) {
       speak(message);
     } finally {
       resolvingOption = false;
+    }
+  } else if (shouldExtractStructuredAnswer(q)) {
+    // A structured answer should be entered once, not accumulated across
+    // recognition segments as a free-form response would be.
+    if (resolvingStructuredAnswer) return;
+    resolvingStructuredAnswer = true;
+    setVoiceStatus("Understanding your answer…");
+    try {
+      const result = await extractStructuredAnswer(q, transcript);
+      stopListening();
+      if (result.decision === "value") {
+        answerEl.value = result.value;
+        setVoiceStatus("Captured. Review or edit it, then select Next.");
+        speak(`I entered ${result.value}.`);
+      } else {
+        const clarification = result.clarification || "Could you say that another way?";
+        setVoiceStatus(clarification);
+        speak(clarification);
+      }
+    } catch (error) {
+      console.error("FormGuide answer-extraction error:", error);
+      stopListening();
+      const message = "I could not understand that answer right now. Please try again or type it into the field.";
+      setVoiceStatus(message);
+      speak(message);
+    } finally {
+      resolvingStructuredAnswer = false;
     }
   } else if (q.type === "date") {
     const normalizedDate = spokenDate(transcript);

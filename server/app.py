@@ -91,6 +91,21 @@ OPTION_MATCH_RESPONSE_SCHEMA = {
     },
 }
 
+STRUCTURED_ANSWER_RESPONSE_SCHEMA = {
+    "name": "formguide_structured_answer",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "decision": {"type": "string", "enum": ["value", "clarify"]},
+            "value": {"type": "string"},
+            "clarification": {"type": "string"},
+        },
+        "required": ["decision", "value", "clarification"],
+        "additionalProperties": False,
+    },
+}
+
 # Update the Pydantic model to catch all the data from the frontend
 class Field(BaseModel):
     id: str
@@ -129,6 +144,17 @@ class OptionMatchRequest(BaseModel):
     originalLabel: str = ""
     context: str = ""
     options: List[OptionCandidate]
+    userAnswer: str
+
+
+class StructuredAnswerRequest(BaseModel):
+    question: str
+    originalLabel: str = ""
+    context: str = ""
+    fieldType: str
+    pattern: Optional[str] = None
+    min: Optional[str] = None
+    max: Optional[str] = None
     userAnswer: str
 
 
@@ -257,6 +283,71 @@ Rules:
         "decision": "clarify",
         "optionIndex": -1,
         "clarification": "Which option best describes your situation?",
+    }
+
+
+@app.post("/extract-structured-answer")
+def extract_structured_answer(request: StructuredAnswerRequest):
+    """Extract only the value a non-sensitive structured field needs."""
+    prompt = f"""You convert a person's spoken response into the exact value requested by one form field.
+
+Plain-language question: {request.question}
+Original form label: {request.originalLabel}
+Form help text: {request.context}
+HTML field type: {request.fieldType}
+HTML pattern, if any: {request.pattern or "none"}
+Minimum value, if any: {request.min or "none"}
+Maximum value, if any: {request.max or "none"}
+What the person said: {request.userAnswer}
+
+Rules:
+- Return only the field value, not conversational framing. For example, if a
+  field asks for a monthly amount and the person says "my rent is 200 dollars",
+  return "200".
+- Preserve the person's stated facts exactly. Do not invent, calculate, round,
+  infer missing information, or make eligibility, legal, medical, or financial
+  decisions.
+- For a number input, return only a plain numeric value with no currency sign,
+  commas, or words. For a date input, return YYYY-MM-DD only when the person
+  stated an unambiguous date. For all other fields, remove only harmless spoken
+  framing such as "my name is" when the requested value is clear; otherwise
+  preserve the answer verbatim.
+- Honor an HTML pattern when one is supplied. Do not claim a value satisfies a
+  pattern unless it actually does.
+- If the value is missing, ambiguous, or cannot safely be normalized, return
+  decision "clarify", value "", and one short question asking only for the
+  missing detail.
+- Otherwise return decision "value", the extracted value, and an empty
+  clarification string.
+"""
+
+    try:
+        response = client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[{"role": "user", "content": prompt}],
+            reasoning_effort="low",
+            response_format={
+                "type": "json_schema",
+                "json_schema": STRUCTURED_ANSWER_RESPONSE_SCHEMA,
+            },
+        )
+        result = json.loads(response.choices[0].message.content)
+    except Exception as error:
+        raise HTTPException(status_code=502, detail=f"AI answer-extraction request failed: {error}") from error
+
+    if result["decision"] == "value" and result["value"].strip():
+        result["value"] = result["value"].strip()
+        result["clarification"] = ""
+        return result
+    if result["decision"] == "clarify":
+        result["value"] = ""
+        result["clarification"] = result["clarification"].strip() or "Could you say that another way?"
+        return result
+
+    return {
+        "decision": "clarify",
+        "value": "",
+        "clarification": "Could you say that another way?",
     }
 
 
