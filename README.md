@@ -1,9 +1,10 @@
-# FormGuide
+# Formly
 
-FormGuide is a voice-first browser assistant for helping people complete confusing online forms. It reads a form one field at a time, translates formal wording into plain English, listens to a spoken response, and fills the matching form control while the person stays in control of every answer.
+Formly is a voice-first browser assistant for helping people complete confusing online forms. It reads a form one field at a time, translates formal wording into plain English, listens to a spoken response, and fills the matching form control while the person stays in control of every answer.
 
-It is designed for forms that use difficult government, legal, financial, medical, or administrative language. FormGuide does not submit a form. It fills answers as the person progresses, then presents a review screen and reminds them to check the page and use the form's own submit button when they are ready.
+It is designed for forms that use difficult government, legal, financial, medical, or administrative language. Formly does not submit a form. It fills answers as the person progresses, then presents a review screen and reminds them to check the page and use the form's own submit button when they are ready.
 
+<img width="376" height="539" alt="image" src="https://github.com/user-attachments/assets/3d3f4945-4d2c-47a6-8d3f-8c9d16f1db4e" />
 
 ## What it does
 
@@ -24,18 +25,21 @@ It is designed for forms that use difficult government, legal, financial, medica
 
 1. The extension scans the open form and sends non-sensitive field metadata to the local API.
 2. The API returns a plain-English question and translated choices for each field.
-3. FormGuide reads the current question aloud. The person can type, select a control, or choose **Speak**.
+3. Formly reads the current question aloud. The person can type, select a control, or choose **Speak**.
 4. For a fixed-choice field, the API either returns the matching supplied choice or a follow-up question. The extension never applies a choice the API did not receive from the page.
 5. For a structured value such as an amount, date, name, email, or number, the API returns only the appropriate field value when it can do so without guessing.
 6. For a written narrative, the person can choose **Refine my answer** to improve clarity without adding facts.
 7. Each answer is filled into the underlying page as it is accepted.
-8. At the end, FormGuide shows a review list and says that the form is ready for manual review. The person reviews the original page and uses its own submit button.
+8. At the end, Formly shows a review list and says that the form is ready for manual review. The person reviews the original page and uses its own submit button.
+
+<img width="365" height="369" alt="image" src="https://github.com/user-attachments/assets/b1861ee9-3cff-4bbd-b422-22003915e8ac" />
+
 
 ## Architecture
 
 | Component | Responsibility |
 | --- | --- |
-| `extension/content.js` | Chrome content script. Extracts fields, renders the FormGuide sidebar, controls voice input/output, calls the local API, validates answers, and writes them back into the page. |
+| `extension/content.js` | Chrome content script. Extracts fields, renders the Formly sidebar, controls voice input/output, calls the local API, validates answers, and writes them back into the page. |
 | `server/app.py` | FastAPI service. Calls Groq with strict JSON schemas for translation, option matching, structured-value extraction, explanations, and optional refinement. |
 | `DemoForm/index.html` | A deliberately jargon-heavy local demo form, including a conditional landlord field. |
 
@@ -110,7 +114,7 @@ Open [http://localhost:5500](http://localhost:5500) in Chrome.
 4. Choose the repository's `extension` folder.
 5. Refresh the demo-form tab.
 
-The FormGuide sidebar should appear on the right side of the page. Allow microphone access when Chrome asks for it.
+The Formly sidebar should appear on the right side of the page. Allow microphone access when Chrome asks for it.
 
 ### After code changes
 
@@ -133,7 +137,7 @@ The AI responses use strict JSON schemas. The frontend validates option indexes 
 
 ## Safety and privacy behavior
 
-- FormGuide never presses the website's submit button and has no “submit” action of its own.
+- Formly never presses the website's submit button and has no “submit” action of its own.
 - For uncertain fixed-choice answers, it asks for clarification rather than choosing a plausible option.
 - The option matcher is limited to the options supplied by the page. It cannot invent another option.
 - The structured-answer extractor is instructed not to calculate, round, infer missing information, or make legal, medical, financial, or eligibility decisions.
@@ -146,7 +150,7 @@ The AI responses use strict JSON schemas. The frontend validates option indexes 
 With the demo form open, test the following:
 
 - A plain-language question is understandable before selecting **Explain**.
-- Say “what is rent?” or “I don't understand” on a text field. FormGuide should explain rather than enter those words as the answer.
+- Say “what is rent?” or “I don't understand” on a text field. Formly should explain rather than enter those words as the answer.
 - Give a natural answer to a dropdown or radio question. It should select a matching option or ask a short follow-up if ambiguous.
 - Say “my rent is 200 dollars” to a numerical amount field. The input should contain `200` only.
 - Give a multi-sentence narrative answer. It should remain unchanged until **Refine my answer** is selected.
