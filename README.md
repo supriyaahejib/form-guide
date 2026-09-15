@@ -168,15 +168,3 @@ form-guide/
 └── README.md
 ```
 
-## Known limitations and next steps
-
-- The manifest is intentionally scoped to the local demo. Supporting real sites requires per-site permission and robust field-extraction testing.
-- Browser speech recognition quality, microphone permission, accents, and background noise affect the experience.
-- Legal and benefits terminology should eventually use retrieval from trusted official sources with citations, rather than model knowledge alone.
-- The current field detector handles common native HTML controls. Custom React, Vue, or canvas-based controls may need dedicated adapters.
-- Add automated tests for field extraction, voice-intent detection, option matching, structured answer extraction, and conditional fields before production use.
-- A production release needs stronger privacy controls, consent messaging, accessibility testing, telemetry policy, error monitoring, and threat modeling.
-
-## License
-
-No license has been specified for this repository. Add an explicit license before distributing or accepting outside contributions.
