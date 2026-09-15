@@ -160,7 +160,7 @@ With the demo form open, test the following:
 ## Repository layout
 
 ```text
-form-guide/
+formly/
 ├── DemoForm/
 │   └── index.html          # Local demo form
 ├── extension/
