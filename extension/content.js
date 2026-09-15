@@ -66,7 +66,7 @@ function getWordLimit(q) {
 function setListeningState(isListening) {
   const micButton = document.getElementById("fg-mic");
   if (micButton) {
-    micButton.innerText = isListening ? "■ Stop" : "🎤 Speak";
+    micButton.innerText = isListening ? "■ Stop" : "🎙 Speak";
   }
 }
 
@@ -551,34 +551,63 @@ function createSidebar() {
   const existingSidebar = document.getElementById("formguide-sidebar");
   if (existingSidebar) existingSidebar.remove(); 
 
+  if (!document.getElementById("formguide-theme")) {
+    const theme = document.createElement("style");
+    theme.id = "formguide-theme";
+    theme.textContent = `
+      #formguide-sidebar, #formguide-sidebar * { box-sizing: border-box; }
+      #formguide-sidebar {
+        --fg-blue: #2563eb; --fg-ink: #12305c; --fg-muted: #687996;
+        --fg-line: #dce8fb; --fg-lilac: #f0edff; --fg-mint: #e8faf4;
+        font-family: "Nunito", "Avenir Next", "Segoe UI", sans-serif;
+      }
+      #formguide-sidebar button { font-family: inherit; transition: transform .15s ease, box-shadow .15s ease, background .15s ease; }
+      #formguide-sidebar button:hover { transform: translateY(-1px); }
+      #formguide-sidebar button:focus-visible, #formguide-sidebar input:focus-visible,
+      #formguide-sidebar textarea:focus-visible, #formguide-sidebar select:focus-visible {
+        outline: 3px solid rgba(37, 99, 235, .2) !important; outline-offset: 1px;
+      }
+      #formguide-sidebar #fg-answer { border: 2px solid #3b82f6 !important; border-radius: 9px !important; color: #19375f; box-shadow: 0 1px 2px rgba(30, 91, 200, .05); }
+      #formguide-sidebar #fg-answer:focus { border-color: #2563eb !important; }
+      #formguide-sidebar #fg-voice-controls button { min-height: 45px; font-weight: 700; font-size: 13px; }
+      #formguide-sidebar #fg-mic { background: var(--fg-lilac) !important; border-color: transparent !important; color: #5a50e8 !important; }
+      #formguide-sidebar #fg-repeat { background: #edf5ff !important; border-color: transparent !important; color: #367ce9 !important; }
+      #formguide-sidebar #fg-explain { background: var(--fg-mint) !important; border-color: transparent !important; color: #138f7e !important; }
+      #formguide-sidebar .fg-primary { box-shadow: 0 7px 14px rgba(37, 99, 235, .18); }
+    `;
+    document.head.appendChild(theme);
+  }
+
   const sidebar = document.createElement("div");
   sidebar.id = "formguide-sidebar";
   sidebar.style.cssText = `
-    position: fixed; top: 0; right: 0; width: 340px; height: 100%;
-    background: white; border-left: 3px solid #2b6cb0; z-index: 999999;
-    padding: 24px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; box-shadow: -4px 0 15px rgba(0,0,0,0.05);
-    overflow-y: auto; display: flex; flex-direction: column;
+    position: fixed; top: 0; right: 0; width: 380px; height: 100%;
+    background: #f7faff; border-left: 1px solid #edf2fb; z-index: 999999;
+    padding: 42px 18px 28px; box-shadow: -10px 0 28px rgba(28, 71, 136, .09);
+    overflow-y: auto;
   `;
   sidebar.innerHTML = `
-    <h2 style="margin-top:0; color: #0f365b;">FormGuide</h2>
-    <div id="fg-progress" style="color:#666; font-size:13px; margin-bottom:10px; font-weight:600;">Initializing...</div>
-    <div id="fg-question" style="font-size:17px; margin-bottom:12px; font-weight: 500; color:#2d3748; line-height:1.4;">Reading the form...</div>
-    <div id="fg-explanation" style="display:block; color:#475569; background:#f8fafc; border-left:3px solid #60a5fa; font-size:13px; line-height:1.45; margin-bottom:10px;"></div>
-    
-    <div id="fg-answer-container" style="margin-bottom:8px;"></div>
-    
-    <div id="fg-error-message" style="color: #e53e3e; font-size: 13px; margin-bottom: 12px; font-weight: 500; display: none;"></div>
-    <div id="fg-voice-status" style="color:#64748b; font-size:12px; min-height:18px; margin-bottom:8px;"></div>
-    <div id="fg-voice-controls" style="display:flex; gap:8px; margin-bottom:12px;">
-      <button id="fg-mic" style="padding:8px; flex:1; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; border-radius:6px; cursor:pointer;">🎤 Speak</button>
-      <button id="fg-repeat" style="padding:8px; border:1px solid #cbd5e0; background:white; border-radius:6px; cursor:pointer;">🔊 Repeat</button>
-      <button id="fg-explain" style="padding:8px; border:1px solid #cbd5e0; background:white; border-radius:6px; cursor:pointer;">? Explain</button>
+    <div style="padding: 3px 14px 26px;">
+      <div style="font-size:40px; line-height:.88; letter-spacing:-2.7px; font-weight:900; color:#082b60;">Form<span style="color:#5c63ef;">ly</span><span style="color:#7390ff; font-size:27px; vertical-align:top; margin-left:2px;">✦</span></div>
+      <div style="font-size:16px; font-weight:700; color:#667796; margin:6px 0 0 2px;">Talk to your form</div>
     </div>
-    
-    <div style="display:flex; gap:10px;" id="fg-button-group">
-      <button id="fg-back" style="padding:10px; background: #e2e8f0; color: #4a5568; border: none; border-radius: 6px; cursor: pointer; font-weight:bold; flex:1; display:none;">Back</button>
-      <button id="fg-next" style="padding:10px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight:bold; flex:2; display:none;">Next</button>
-    </div>
+    <main style="background:white; border-radius:22px; padding:20px; box-shadow:0 8px 30px rgba(42, 85, 151, .08);">
+      <div id="fg-progress" style="color:#7098dd; font-size:13px; margin-bottom:16px; font-weight:800;">Initializing...</div>
+      <div id="fg-question" style="font-family:&quot;Segoe UI&quot;, Arial, sans-serif; font-size:18px; margin-bottom:14px; font-weight:400; letter-spacing:-.1px; color:#12305c; line-height:1.42;">Reading the form...</div>
+      <div id="fg-explanation" style="display:block; color:#41628f; background:#edf5ff; border-radius:8px; font-size:13px; line-height:1.4; margin-bottom:14px;"></div>
+      <div id="fg-answer-container" style="margin-bottom:8px;"></div>
+      <div id="fg-error-message" style="color:#d84e58; font-size:13px; margin:10px 0; font-weight:700; display:none;"></div>
+      <div id="fg-voice-status" style="color:#70809c; font-size:12px; min-height:18px; margin:9px 0 16px; line-height:1.35;"></div>
+      <div id="fg-voice-controls" style="display:flex; gap:8px; margin-bottom:20px;">
+        <button id="fg-mic" style="padding:8px; flex:1; border:0; border-radius:8px; cursor:pointer;">🎙 Speak</button>
+        <button id="fg-repeat" style="padding:8px; flex:1; border:0; border-radius:8px; cursor:pointer;">🔊 Repeat</button>
+        <button id="fg-explain" style="padding:8px; flex:1; border:0; border-radius:8px; cursor:pointer;">? Explain</button>
+      </div>
+      <div style="display:flex; gap:10px;" id="fg-button-group">
+        <button id="fg-back" style="padding:13px 10px; background:#edf3fb; color:#536c91; border:0; border-radius:8px; cursor:pointer; font-weight:800; flex:1; display:none;">Back</button>
+        <button class="fg-primary" id="fg-next" style="padding:13px 10px; background:#2563eb; color:white; border:0; border-radius:8px; cursor:pointer; font-size:14px; font-weight:800; flex:2; display:none;">Next&nbsp; →</button>
+      </div>
+    </main>
   `;
   document.body.appendChild(sidebar);
 }
@@ -670,12 +699,20 @@ function showSummary() {
   window.speechSynthesis?.cancel();
   const sidebar = document.getElementById("formguide-sidebar");
   let html = `
-    <h2 style="margin-top:0; color:#0f365b;">Review & Confirm</h2>
-    <p style="font-size:13px; color:#4a5568;">Your answers have been filled into the form. Review every answer on the page, make any needed changes, and use the form's own submit button only when you are ready.</p>
-    <div style="display:flex; gap:10px; margin-bottom: 20px;">
-      <button id="fg-back-summary" style="padding:10px; background: #e2e8f0; color: #4a5568; border: none; border-radius: 6px; cursor: pointer; font-weight:bold; width:100%;">Go Back and Edit</button>
+    <div style="padding:3px 14px 26px;">
+      <div style="font-size:40px; line-height:.88; letter-spacing:-2.7px; font-weight:900; color:#082b60;">Form<span style="color:#5c63ef;">ly</span><span style="color:#7390ff; font-size:27px; vertical-align:top; margin-left:2px;">✦</span></div>
+      <div style="font-size:16px; font-weight:700; color:#667796; margin:6px 0 0 2px;">Talk to your form</div>
     </div>
-    <ul style="padding-left:0; list-style:none;">`;
+    <main style="background:white; border-radius:22px; padding:20px; box-shadow:0 8px 30px rgba(42, 85, 151, .08);">
+      <div style="display:flex; align-items:center; justify-content:center; width:43px; height:43px; border-radius:50%; background:#e8faf4; color:#129a80; font-size:23px; margin-bottom:14px;">✓</div>
+      <div style="font-size:13px; color:#7098dd; font-weight:800; margin-bottom:10px;">ALL QUESTIONS COMPLETE</div>
+      <h2 style="margin:0 0 9px; color:#12305c; font-size:22px; letter-spacing:-.4px;">Ready to review</h2>
+      <p style="font-size:13px; line-height:1.5; color:#657795; margin:0 0 18px;">Your answers are now in the form. Check them on the page, make any changes you need, then use the form's own submit button when you are ready.</p>
+      <div style="display:flex; gap:10px; margin-bottom:18px;">
+        <button id="fg-back-summary" style="padding:12px; background:#edf3fb; color:#526b90; border:0; border-radius:8px; cursor:pointer; font-weight:800; width:100%;">← Go back and edit</button>
+      </div>
+      <div style="font-size:13px; font-weight:800; color:#12305c; margin-bottom:10px;">Your answers</div>
+      <ul style="padding:0; margin:0; list-style:none;">`;
   
   questions.forEach((q) => {
     let displayAnswer = answers[q.fieldId];
@@ -690,12 +727,12 @@ function showSummary() {
     }
     
     html += `
-      <li style="margin-bottom:12px; background:#f7fafc; padding:10px; border-radius:4px; border:1px solid #e2e8f0;">
-        <div style="font-size:12px; color:#718096; margin-bottom:4px;">${escapeHtml(q.question)}</div>
-        <div style="font-size:14px; color:#2d3748; font-weight:500;">${displayAnswer ? escapeHtml(displayAnswer) : "<em style='color:#e53e3e;'>Skipped</em>"}</div>
+      <li style="margin-bottom:9px; background:#f7faff; padding:11px; border-radius:9px; border:1px solid #e5eefc;">
+        <div style="font-size:12px; line-height:1.35; color:#7185a6; margin-bottom:5px;">${escapeHtml(q.question)}</div>
+        <div style="font-size:13px; line-height:1.35; color:#173861; font-weight:800;">${displayAnswer ? escapeHtml(displayAnswer) : "<em style='color:#d84e58;'>Skipped</em>"}</div>
       </li>`;
   });
-  html += `</ul>`;
+  html += `</ul></main>`;
   sidebar.innerHTML = html;
   speak("Your form is ready for review. Your answers have already been filled into the form. Please check every answer carefully, make any needed changes, and use the form's own submit button only when you are ready.");
 }
@@ -725,7 +762,7 @@ async function explainCurrentQuestion(userRequest = "") {
 
     const explanationEl = document.getElementById("fg-explanation");
     if (explanationEl) {
-      explanationEl.innerText = data.explanation;
+      explanationEl.innerText = `💡  ${data.explanation}`;
       explanationEl.style.padding = "10px";
     }
     setVoiceStatus(data.explanation);
